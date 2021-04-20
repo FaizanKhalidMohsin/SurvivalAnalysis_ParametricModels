@@ -1,0 +1,400 @@
+---
+title: "Survival Assingment 2"
+author: "Faizan Khalid Mohsin"
+date: "February 1, 2019"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(survival)
+library(survminer)
+library(data.table)
+library(sas7bdat)
+library(flexsurv)
+library(tableone)
+library(xtable)
+library(knitr)
+library(dplyr)
+#source("KreateTableOne")
+```
+
+\newpage
+
+# Abstract
+
+**Background:** Time to events are a very important class of random variables, for which the field of survival analysis has be developed. In survival analysis, the flexibility that the non-parametric coxproportional hazard model offers, has become very popular. However, if the data allows, using fully parametric models can be very powerfull as well. Especially, estimating the parameters of a model exactly can be a very powerful predictive tool. **Purpose:** In this study we will compare four parametric survival models: log-normal, log-logistic, exponential and weibull model. We will first use the Kaplan-Meier curves, gamma distribution, AIC and likelihood ratio test to see which model fits the data best. Using which, we will conduct a complete survival analysis. After that, we will further perform an additional survival analysis using the log-logistic model and present the results. **Methods:** We use the Melanoma data set to perform survival analysis with death the outcome variable, and the tumour stage, presence of skin ulcers, and tumour thickness as the main covariates. **Results:** The Weilbull model had the smallest AIC (551.9342) and LogLikelihood (-273.9671) of the four models. When we fit the complete model using the Weibull we get ... . For the log-logistic survival model.  **Conclusion:** 
+
+
+
+# Introduction
+
+# Methods
+
+## Data Set
+
+## Statistical Analysis
+
+```{r KreateTableOne, echo= FALSE}
+
+# Define function KreateTableOne
+
+# create knit-able Table 1 ================================
+# requires tableone
+# suggests knitr
+
+#' Create a table of descriptive statistics formatted for knitr::kable
+#' 
+#' \code{KreateTableOne} is a wrapper for \code{tableone::CreateTableOne} which formats the original plain text table as a data.frame of character columns. This can be printed in an RMarkdown document in a number of ways, e.g., using \code{knitr::kable}.
+#' 
+#' This is a very hacky function. If used within an RMarkdown document, KreateTableOne should be called in a code chunk with \code{results='hide'} to hide the plain test results printed from \code{tableone::CreateTableOne}. The resulting data frame should be saved as an object and used in a second code chunk for formatted printing. Suggestions for improvement are welcomed.
+#' 
+#' The function is written to work with \code{knitr::kable}, but should be able to work with other functions such as \code{xtable::xtable}.
+#' 
+#' @param x The data set to be passed to the \code{data} parameter of \code{tableone::CreateTableOne}
+#' @param ... Other parameters to be passed to \code{tableone::CreateTableOne}
+#' 
+#' @return Returns a data frame of character columns.
+#' 
+#' @seealso \code{\link[tableone]{CreateTableOne}}
+#' 
+#' @examples 
+#' table1 = KreateTableOne(x=mtcars, strata='am', factorVars='vs')
+#' table1
+#' knitr::kable(table1)
+#' 
+#' @export
+
+KreateTableOne = function(x, showalllevels = TRUE, ..., printSMD = TRUE){
+  t1 = tableone::CreateTableOne(data=x, ...)
+  t2 = print(t1, quote=TRUE, showAllLevels = showalllevels, ...)
+  rownames(t2) = gsub(pattern='\\"', replacement='', rownames(t2))
+  colnames(t2) = gsub(pattern='\\"', replacement='', colnames(t2))
+  return(t2)
+}
+
+```
+
+# Results
+
+## Descriptive Statisitcs
+
+### Question 1 a
+
+
+```{r}
+data0 = fread("melanoma.csv", na.strings=c(""," ","NA"))
+#str(data0)
+
+# lOOKING at the number of missing data. 
+#sapply(data0, function(x) sum(is.na(x)))
+# data01 = fread("melanoma1.csv")
+# str(data01)
+# datasas0 = read.sas7bdat("melanoma.sas7bdat")
+# str(datasas0)
+
+data1=data0
+data1$biopsydate = as.Date(data0$biopsydate,format='%d%b%Y')
+data1$vstatusdate = as.Date(data0$vstatusdate, format='%d%b%Y')
+#str(data1)
+#summary(data1)
+#sapply(data1[, c("vstatus", "clarklevel")], function(x) unique(x))
+
+data1$event = ifelse(data1$vstatus == "Dead", 1, 0)
+#str(data1)
+data1$days  = data1$vstatusdate - data1$biopsydate
+#str(data1)
+data1$vstatus = as.factor(data1$vstatus)
+data1$clarklevel = as.factor(data1$clarklevel)
+
+#data1$vstatusdate[1] - data1$biopsydate[1]
+
+incorrect_date = filter(data1, days<=0)
+# some time differences are 0. Are these administrative errors? One of them had the event of Ulceration on the date of biopsy, another did not both were alive. However, since they have zero follow-up time, it is as if they dropped out. So including or excluding them should give them the exact same result. As, n-sample size directly does not effect outcome - only the number of events and nonevents with the follow-up time to event or censuring. 
+
+# Therefore, for now we will exclude these patients. 
+
+data1$years = data1$days/365.2422
+data1$years = as.numeric(data1$years)
+
+#str(data1)
+#table(data1$vstatus)
+proportion_alive = sum(data1$event)/length(data1$event)
+
+#proportion_alive
+# approximately 8%
+
+data_correct_people = filter(data1, days>0)
+#str(data_correct_people)
+
+# Drop all unnessisary variables to create final dataset. 
+datta = select(data_correct_people, -id, -days)
+#str(datta)
+```
+
+
+
+```{r , include=FALSE} 
+
+variables=names(select(datta, -"biopsydate", -"vstatusdate", -"event"))
+table1 = KreateTableOne(x=datta, vars=variables, factorVar = "ulceration")
+
+#tableone = CreateTableOne(vars=variables, data=datta )
+#TABLE1 = print(tableone, showAllLevels = TRUE)
+#kable(xtable(TABLE1))
+
+```
+
+
+
+```{r}
+kable(table1, caption = "Summary of Variables.")
+```
+
+From Table 1 we can see that about 8% of the patients died at the end of their respective follow-up times.
+
+### Question 1 b
+
+
+```{r, include=FALSE}
+covariates = names(select(datta, clarklevel, ulceration, thickness))
+summary(select(datta, covariates))
+variables1=names(select(datta,-"clarklevel", -"biopsydate", -"vstatusdate", -"event"))
+table2 = KreateTableOne(x=datta, strata = "clarklevel", vars=variables1, factorVar = "ulceration")
+
+```
+
+
+```{r}
+kable(table2, caption = "Summary of Variables by Clark Level.")
+```
+
+From Table 2 we can see that the percentage of people with ulceration and mean tumor thickness increase as the Clark level increases. We also see that the percentage of people dead increases as Clark level increases. So as the Clark level increases, the percentage of people with uleration is increasing and the average size of the tumor thickness that people have is also increasing and, as can be seen from Table 2, more people are dying. 
+
+
+```{r Correlation}
+
+# table(datta$clarklevel, datta$ulceration)
+# m = cor(select(datta, as.factor(clarklevel), ulceration, thickness))
+# corrplot()
+
+```
+
+## Parametric Survival Models
+
+### Question 1 c
+
+Do we need to create the survival, hazard and cumulative hazard/survival curves for these models. 
+
+
+First, we look at the distribution of the follow-up time of the patients. 
+```{r}
+hist(datta$years, breaks = 20, xlab = "Follow-up time (years)", 
+       main = "Histogram of Follow-up Time.")
+#?hist
+hist(log(datta$years), breaks = 20, xlab = "Log follow-up time (years)", 
+       main = "Histogram of Log Follow-up Time.")
+#qplot(chol$AGE, geom="histogram") 
+```
+
+From the above histograms we can see that the follow-up times first have a quick drop, then decrease steadily and then are almost constant and then, again start to steadily decay.  
+
+We will now create the Kaplan-Meier curve. 
+
+```{r}
+heading = "Kaplan-Meier Curve"
+fit = survfit(Surv(time = years, event = event) ~ 1, data = datta)
+ggsurvplot(fit, risk.table = TRUE, data = datta) #+ ggtitle(heading)
+plot(fit, main = heading)
+
+```
+
+
+We create parametric survival models. 
+
+```{r}
+
+# We will fit the parametric survival models using the R package flexsurv. 
+
+
+weilbull = survreg(formula = Surv(time = years, event = event) ~ 1, data = datta, dist = "weibull")
+weilbull
+plot(weilbull, ymin = .49, ci = FALSE)
+#ggsurvplot(weilbull)
+# Question, what is default censuring for Surv(), does it need type of censuring as an input. 
+lnorm = survreg(formula = Surv(time = years, event = event) ~ 1, data = datta, dist = "lnorm")
+plot(lnorm, ymin = .49, ci = FALSE)
+llogis = survreg(formula = Surv(time = years, event = event) ~ 1, data = datta, dist = "llogis")
+llogis
+plot(llogis, ymin = .49, ci = FALSE)
+exp = survreg(formula = Surv(time = years, event = event) ~ 1, data = datta, dist = "exp")
+exp
+plot(exp, ymin = .49, ci = FALSE)
+gamma = survreg(formula = Surv(time = years, event = event) ~ 1, data = datta, dist = "gamma")
+gamma
+plot(gamma, ymin = .49, ci = FALSE)
+
+list_dist = list(weilbull, lnorm, llogis, exp)
+aic = data.frame(AIC = sapply(list_dist, getElement, name = "AIC"))
+loglik = data.frame(LogLikelihood = sapply(list_dist, getElement, name = "loglik"))
+
+model_results_table = cbind(aic, loglik)
+
+rownames(model_results_table) = c("Weilbull",
+                    "Log-normal", "Log-logistic", "Exponential")
+
+model_results_table = t(model_results_table)
+
+```
+
+?????????????? Do we need to incude any other goodness of fit BIC, AICC and do we need to include the gamma distribution as well??????????
+
+```{r}
+kable(model_results_table, caption = "Log-likelihood and AIC of the different parametric models.")
+```
+
+
+Question: In stats we use multiple imputation and randomforest imputation (nonlinear relationships) to handle multiple imputation. In survival, should either of these be used, not used, or should very specifically created mi and rf methods be used, because of how survival, time to event, is?
+
+
+Based on the AIC and log-likelihood values alone we would go with the Weillbull distribution because it has the smallest log-likelihood and AIC.
+
+Now look at the Gamma method, suggested in slides 80 and 84 we look at.. and this would agree with ..
+
+We looking at the correlation of the variables we will decide the covariates to be used. 
+
+### Question 1 d
+
+
+### Question 1 e
+
+We have chosen the weibull distribution model. 
+
+R gives us the shape and scale parameter estimates which correspond to the $\alpha$ and $\mu$ for the following survival function $S(t) = exp(-(t/\mu)^\alpha)$.
+
+Therefore, we have the following correspondence between our parametrization and the parametrization in the lecture notes: $\lambda = 1/\mu$ and $\gamma = \alpha$ [@jackson2016flexsurv, pg 4].
+
+Hence, the 
+
+```{r}
+
+#clarklevel + 
+
+final_model1 = survreg(formula = Surv(time = years, event = event) ~ ulceration + thickness, data = datta, dist = "weibull")
+
+final_model1
+
+plot(final_model1)
+
+final_model2 = survreg(formula = Surv(time = years, event = event) ~ ulceration + thickness + clarklevel, data = datta, dist = "weibull")
+
+final_model2
+
+# Why are the shape and scale parameters NA?
+
+# How to determine when the covariates should be transformed. We know when the y and x should be in regression. When the normality and distribution assumptions are not satisfied. 
+```
+
+
+### Question 1 f
+
+To assess the goodness of fit, we look at the log-likelihood ratio test. We compare the null model against the fitted model with covariates by subtracting their deviance. We know this difference in deviance follows a ditribution with degrees of freedom equal to the difference in the number of the parameters in the two models, which in our case is...
+
+### Question 1 g
+
+## Log-logistic Survival Model
+
+### Question 2 a
+
+We will remove the people with missing ulceration data before, we fit a log-logistic model with covariate ulceration (excluding the missing cases).
+
+```{r}
+# We check how many missing data there is for the ulceration column.
+# sapply(datta, function(x) sum(is.na(x)))
+
+# We will remove all of these.
+
+datta1 = datta[!is.na(datta$ulceration), ]
+datta1$ulceration = as.factor(datta1$ulceration)
+# Check now how many missing data there is for the ulceration column.
+# sapply(datta1, function(x) sum(is.na(x))) # None
+
+```
+
+We will now fit the model. 
+
+```{r}
+llogmodel = survreg(formula = Surv(time = years, event = event) ~
+                          ulceration, data = datta1, dist = "llogis")
+
+llogmodel
+```
+
+
+????????????????????
+
+### Question 2 b.	
+
+Produce two survival plots from this log-logistic model (i.e. one for ulceration=yes and one for ulceration=no).? ????????????
+DOES SHE MEAN TWO SURVIVAL CURVES. (NOT TWO SEPERATE PLOTS?)
+
+?????????????????
+
+```{r}
+
+
+plot(llogmodel, ci = TRUE, col = c(2,4))
+
+ggsurvplot(llogmodel, risk.table = TRUE, pval = TRUE, size = 1, 
+           #legend.title = "Ulceration",
+           #legend.labs = c("No", "Yes"), 
+           conf.int  = TRUE, 
+           xlab = "Time (years)",
+           risk.table.height = 0.3,
+           ylim = c(.18,1))
+
+```
+
+
+### Question 2 c.	What is the estimated time ratio and odds ratio for survival and their 95% confidence intervals using the model parameter estimates (for ulceration compared to no ulceration)?
+
+From the documentation of the flexsurv R package's paper [@jackson2016flexsurv] we have that the shape and scale parameters are $\alpha$ and $\mu$ with the survival function $S(t) = 1/(1+(t/\mu)^\alpha)$ which correspond to the parameters from the lecture notes as follows where the parameters from the lectures will be expressed as function of the R parameters: $\alpha = 1/\mu$ and $\gamma = \alpha$, where the later $\alpha$ is the scale parameter of the R output [@jackson2016flexsurv, page 12].  
+
+All the following equations have the lecture notes' paramters. 
+
+_Odds ratio (2 vs 1) = $\alpha_1/\alpha_2$_
+
+?????????????? What is time ratio ??????????
+
+
+### Question 2 d.	Demonstrate the time ratio using the estimated median survival for each group.  Are the estimated medians observed time points in the data?
+
+The median is equal to $(1/\alpha)^{1/\gamma}$. 
+
+
+### Question 2 e.	Demonstrate the odds ratio using the estimated proportion surviving 3 years or more.
+
+<!-- #vcov, 95% or higher correlation will give numerical issues.  -->
+<!-- # cov2cor(vcov(fit)) # matrix -->
+<!-- # high correlation in the variables induces high negative correlation between parameters.  -->
+
+### Question 2 f.	How would you describe the time ratio and odds ratio to a member of the study team who does not have a background in statistics?
+
+
+????????????Also need to plot Residual and diagnostic plots ?????????????????????????
+
+Need to present the model summaries as in lecture notes slide 126
+
+# Discussion
+
+# References
+
+<div id="refs"></div>
+
+# Appendix
